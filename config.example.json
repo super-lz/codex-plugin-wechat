@@ -1,0 +1,6 @@
+{
+  "codexBin": "/path/to/codex",
+  "workRoot": "$HOME/codex-plugin-wechat-worker",
+  "codexApprovalPolicy": "never",
+  "codexSandboxMode": "workspace-write"
+}
