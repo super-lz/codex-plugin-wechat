@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { writeAudit } from "../audit.js";
 import { CodexAppServerClient } from "../codex/app-server-client.js";
 import { LOG_DIR } from "../config.js";
+import { executeControlActions, handleSlashControlCommand } from "./control.js";
 import { MessageRouter } from "../gateway/message-router.js";
 import { SessionManager } from "../gateway/session-manager.js";
 import { getUserCacheDir, getWorkspaceRoot } from "../gateway/workspace.js";
@@ -32,17 +33,23 @@ export async function runGateway(): Promise<void> {
     log("codex-delta", `${event.threadId}/${event.turnId}: ${event.delta}`);
   });
 
-  const router = new MessageRouter(codex, new SessionManager());
+  const sessions = new SessionManager();
+  const router = new MessageRouter(codex, sessions);
   log("workspace", `user workspaces under ${getWorkspaceRoot()}`);
 
   const api = new WechatApiClient(credentials);
-  const poller = new WechatPoller(api, (message) => handleInboundMessage(message, router, api), credentials);
+  const poller = new WechatPoller(
+    api,
+    (message) => handleInboundMessage(message, router, sessions, api),
+    credentials
+  );
   await poller.start();
 }
 
 async function handleInboundMessage(
   message: WechatInboundMessage,
   router: MessageRouter,
+  sessions: SessionManager,
   api: WechatApiClient
 ): Promise<void> {
   if (message.message_type !== 1 || !message.from_user_id || !message.context_token) {
@@ -71,6 +78,16 @@ async function handleInboundMessage(
   }
 
   const text = extractText(message);
+  const controlResult = await handleControlCommand({
+    senderId: message.from_user_id,
+    text,
+    contextToken: message.context_token,
+    sessions,
+    api
+  });
+  if (controlResult.handled) {
+    return;
+  }
   const cacheDir = getUserCacheDir(message.from_user_id);
   const media = await downloadInboundMedia({
     message,
@@ -110,13 +127,28 @@ async function handleInboundMessage(
     });
 
     const actions = parseCodexActions(result.reply);
-    log("codex-actions", `parsed ${actions.actions.length} action(s) for ${message.from_user_id}`);
-    for (const action of actions.actions) {
+    log(
+      "codex-actions",
+      `parsed ${actions.sendActions.length} send action(s) and ${actions.controlActions.length} control action(s) for ${message.from_user_id}`
+    );
+    for (const action of actions.sendActions) {
       log("codex-actions", `${action.type}: ${action.path}`);
     }
+    for (const action of actions.controlActions) {
+      log(
+        "codex-actions",
+        action.type === "workspace.set" ? `${action.type}: ${action.path}` : action.type
+      );
+    }
+
+    const controlNotices = await executeControlActions({
+      senderId: message.from_user_id,
+      sessions,
+      actions: actions.controlActions
+    });
 
     let firstCaption = actions.cleanedText;
-    for (const action of actions.actions) {
+    for (const action of actions.sendActions) {
       if (action.type === "image") {
         await sendImageFromPath({
           api,
@@ -151,11 +183,12 @@ async function handleInboundMessage(
       firstCaption = "";
     }
 
-    if (firstCaption || actions.actions.length === 0) {
-      if (actions.actions.length === 0) {
+    const finalText = [firstCaption, ...controlNotices].filter(Boolean).join("\n\n");
+    if (finalText || actions.sendActions.length === 0) {
+      if (actions.sendActions.length === 0 && actions.controlActions.length === 0) {
         log("codex-actions", "no executable actions found; falling back to text reply");
       }
-      const chunks = chunkText(firstCaption || "已收到，但没有可发送的文本回复。");
+      const chunks = chunkText(finalText || "已收到，但没有可发送的文本回复。");
       for (const chunk of chunks) {
         await api.sendTextMessage({
           toUserId: message.from_user_id,
@@ -186,4 +219,14 @@ async function handleInboundMessage(
       contextToken: message.context_token
     });
   }
+}
+
+async function handleControlCommand(params: {
+  senderId: string;
+  text: string;
+  contextToken: string;
+  sessions: SessionManager;
+  api: WechatApiClient;
+}): Promise<{ handled: boolean }> {
+  return handleSlashControlCommand(params);
 }

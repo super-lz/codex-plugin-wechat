@@ -4,6 +4,8 @@
 
 把微信消息转发给本机 Codex，并把 Codex 回复发回微信。
 
+![微信演示](./assets/demo.jpg)
+
 ## 概览
 
 - 微信消息转给 Codex
@@ -63,6 +65,12 @@ $HOME/.codex-plugin-wechat/cache/users/<user>/inbound/
 $HOME/.codex-plugin-wechat/config/config.json
 ```
 
+持久环境变量文件：
+
+```bash
+$HOME/.codex-plugin-wechat/config/env.sh
+```
+
 示例：
 
 ```json
@@ -84,9 +92,13 @@ export CODEX_APPROVAL_POLICY=never
 export CODEX_SANDBOX_MODE=workspace-write
 ```
 
+如果你希望启动脚本自动加载环境变量，就把它们写进 `config/env.sh`。
+示例：
+- [env.example.sh](./env.example.sh)
+
 ## 文件传输
 
-如果要让 Codex 把本地文件或图片发回微信，它的最终回复必须带 `codex-actions`：
+如果要让 Codex 把本地文件或图片发回微信，或者让网关切工作目录、重置 thread，它都可以在最终回复里带 `codex-actions`：
 
 ````text
 ```codex-actions
@@ -94,6 +106,10 @@ export CODEX_SANDBOX_MODE=workspace-write
   "send": [
     { "type": "image", "path": "/absolute/path/out.png" },
     { "type": "file", "path": "/absolute/path/report.pdf" }
+  ],
+  "control": [
+    { "type": "workspace.set", "path": "/absolute/path/project" },
+    { "type": "thread.reset" }
   ]
 }
 ```
@@ -104,6 +120,7 @@ export CODEX_SANDBOX_MODE=workspace-write
 - 只接受绝对本地路径
 - `image` 用于微信内联展示
 - `file` 用于附件发送
+- `workspace.set`、`workspace.reset`、`thread.reset` 是支持的宿主控制动作
 - 微信可能会转码 `image`；如果要保留原始格式，请用 `file`
 
 ## 常用命令
@@ -119,6 +136,19 @@ npm run reset -- all
 ```
 
 `reset -- state` 清空网关状态，`reset -- all` 还会删除用户工作目录。
+
+## 微信内置控制
+
+你既可以直接用自然语言说“切到 /path/to/project 继续处理”，也可以显式使用这些命令：
+
+```text
+/workspace
+/workspace set /absolute/path
+/workspace reset
+/thread reset
+```
+
+切换工作目录时会自动重置当前 thread，所以下一条消息会在新目录里新开 thread。
 
 ## 开发
 

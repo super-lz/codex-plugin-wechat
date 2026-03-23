@@ -14,7 +14,7 @@ export class MessageRouter {
     text: string;
     localImagePaths?: string[];
   }): Promise<{ reply: string; threadId: string; cwd: string }> {
-    const cwd = getUserWorkspace(params.senderId);
+    const cwd = this.getWorkspaceForUser(params.senderId);
     let threadId = this.sessions.getThreadIdForUser(params.senderId);
     if (!threadId) {
       threadId = await this.createAndStoreThread(params.senderId, cwd);
@@ -46,6 +46,10 @@ export class MessageRouter {
       });
     }
     return { reply, threadId, cwd };
+  }
+
+  getWorkspaceForUser(senderId: string): string {
+    return this.sessions.getWorkspaceOverrideForUser(senderId) ?? getUserWorkspace(senderId);
   }
 
   private async createAndStoreThread(senderId: string, cwd: string): Promise<string> {

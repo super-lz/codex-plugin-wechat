@@ -7,6 +7,7 @@ import {
   DEFAULT_CODEX_SANDBOX_MODE
 } from "../config.js";
 import { log, logError } from "../logger.js";
+import { BRIDGE_FILE_TRANSFER_INSTRUCTIONS } from "./bridge-instructions.js";
 import type {
   JsonRpcFailure,
   JsonRpcId,
@@ -25,6 +26,7 @@ import {
   type ThreadStartResult,
   type TurnStartResult
 } from "./protocol.js";
+import { PROJECT_OPERATION_INSTRUCTIONS } from "./project-instructions.js";
 
 type PendingRequest = {
   resolve: (value: unknown) => void;
@@ -55,20 +57,8 @@ export type TurnCompletedEvent = {
 export type RunTurnMode = "start" | "steer" | "prefer-steer";
 
 const WECHAT_BRIDGE_DEVELOPER_INSTRUCTIONS = [
-  "You are replying through a WeChat bridge.",
-  "If you want the bridge to send a local image or file to the user, you must include a final structured action block in your response.",
-  "Use exactly this format:",
-  "```codex-actions",
-  '{ "send": [ { "type": "image", "path": "/absolute/path/file.png" } ] }',
-  "```",
-  'For non-image files, use { "type": "file", "path": "/absolute/path/file.ext" }.',
-  'Use type "image" when you want the user to view the image directly in WeChat.',
-  'Use type "file" when preserving the original file format matters, even for image-like files such as .webp.',
-  'WeChat may transcode or re-encode items sent as type "image", so the original file format may not be preserved.',
-  "Only use absolute local filesystem paths that already exist.",
-  "Do not rely on markdown links or plain text paths when you intend the file to be sent.",
-  "If you do not want the bridge to send a file, do not emit a codex-actions block.",
-  "If the user sends images, they may be attached as local images and also mentioned in text with local saved paths."
+  BRIDGE_FILE_TRANSFER_INSTRUCTIONS,
+  PROJECT_OPERATION_INSTRUCTIONS
 ].join("\n");
 
 export class CodexAppServerClient extends EventEmitter {

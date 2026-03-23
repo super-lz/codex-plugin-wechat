@@ -22,6 +22,7 @@ export const STATE_DIR = APP_HOME;
 export const CACHE_DIR = appRoots.cacheDir;
 export const CONFIG_DIR = appRoots.configDir;
 export const CONFIG_FILE = join(CONFIG_DIR, "config.json");
+export const ENV_FILE = join(CONFIG_DIR, "env.sh");
 const fileConfig = readJsonFile<FileConfig>(CONFIG_FILE, {});
 
 export const DEFAULT_WORK_ROOT = getWorkerRoot(fileConfig.workRoot);
